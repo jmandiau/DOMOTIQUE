@@ -9,7 +9,7 @@ DHT dht(DHTPIN, DHTTYPE);
 //Obj Oled
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE);
 
-//Constantes
+//Constantes 
 //temps entre chaque lecture
 const int readTime(2000);
 //Decalage scroll
