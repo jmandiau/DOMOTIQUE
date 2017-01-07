@@ -135,6 +135,49 @@ void informationMessage(){
 
 }
 
+//Set les variables menbres tmpHumidity et tmpTemperature
+void setTmpHum(){
+    // Reading temperature or humidity takes about 250 milliseconds!
+    // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
+    float humidity = dht.readHumidity();
+    // Read temperature as Celsius
+    float temperature = dht.readTemperature();
+    
+    // check if returns are valid, if they are NaN (not a number) then something went wrong!
+    if (isnan(temperature) || isnan(humidity)) {
+      //Serial.println("Failed to read from DHT");
+    } else {
+      tmpHumidity=humidity;
+      tmpTemperature=temperature;
+    }
+}
+
+//controle de l'ecran par motion sensor
+void screenManagementByMotionSensor(){
+  readPIR = digitalRead(inputPin);
+  //Serial.println(readPIR);
+  
+  if (readPIR == HIGH) {  
+    if(stateScreen == LOW){
+     u8g.sleepOff();
+     stateScreen=HIGH;
+    }
+   
+  } else {
+    if(stateScreen == HIGH){  
+     u8g.sleepOn();
+     stateScreen=LOW;
+    }
+  }
+}
+
+//Set la variable v_now
+void setDateTime(){
+  //Recuperation de la date/heure
+  v_now = cpClock.now();
+}
+
+
 void setup() {
   
   Serial1.begin(9600); 
@@ -172,52 +215,15 @@ void setup() {
 
 void loop() {
 
-  //Recuperation de la date/heure
-  v_now = cpClock.now();
+  setDateTime();
   
   if(v_diff>=readTimeDHT){
-  // Reading temperature or humidity takes about 250 milliseconds!
-    // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
-    float humidity = dht.readHumidity();
-    // Read temperature as Celsius
-    float temperature = dht.readTemperature();
-    
-    // check if returns are valid, if they are NaN (not a number) then something went wrong!
-    if (isnan(temperature) || isnan(humidity)) {
-      //Serial.println("Failed to read from DHT");
-    } else {
-      tmpHumidity=humidity;
-      tmpTemperature=temperature;
-      //draw("Welcome Joffrey",tmpHumidity,tmpTemperature);
-      //Serial.print("Humidity: "); 
-      //Serial.print(humidity);
-      //Serial.print(" %\t");
-      //Serial.print("Temperature: "); 
-      //Serial.print(temperature);
-      //Serial.println(" *C");
-    }
+    setTmpHum();
     v_diffTime=millis();
  
   }
-
-  readPIR = digitalRead(inputPin);
-  //Serial.println(readPIR);
   
-  if (readPIR == HIGH) {  
-    if(stateScreen == LOW){
-     u8g.sleepOff();
-     stateScreen=HIGH;
-    }
-   
-  } else {
-    if(stateScreen == HIGH){  
-     u8g.sleepOn();
-     stateScreen=LOW;
-    }
-  }
+  screenManagementByMotionSensor();
   setLcd('I');
-
-  
-
   v_diff=millis()-v_diffTime;
 }
