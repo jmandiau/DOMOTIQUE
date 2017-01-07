@@ -1,5 +1,7 @@
 #include <U8glib.h>
 #include <DHT.h>
+#include <RTClib.h>
+#include <Wire.h>
  
 #define DHTPIN 4     // Pin du DHT
 #define DHTTYPE DHT22   // DHT 22  (AM2302)
@@ -8,10 +10,16 @@
 DHT dht(DHTPIN, DHTTYPE);
 //Obj Oled
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE);
+//obj Timer/clock
+RTC_DS1307 cpClock; // Définition de l’objet Composant Timer Tiny RTC
+
+//Variable clock
+DateTime v_now;
 
 //Variables PIR
 int inputPin = 7;
-int readPIR = LOW; 
+int readPIR = 0;
+int stateScreen=1;
 
 //Variables DHT22
 //temps entre chaque lecture
@@ -25,25 +33,69 @@ float tmpTemperature=0;
 
 //Variable Scroll
 //Decalage scroll
-const int v_inc = 2;
+const int v_inc = 4;
 //Init position scroll
 int v_xoffset = 0;
 
 
+/*  
+ *   Author:Seb
+ *   Nom : FormatDate
+Description : Formatage de la date
+Paramètres : p_date => DateTime à formater
+       p_type => 1 = date au format JJ/MM/AA, 2 = heure au format HH:MM:SS, 3 = date et heure au format JJ/MM/AA HH:MM:SS
+Retour : String => Chaine contenant la date et l'heure.
+*/
+String FormatDate(DateTime p_date, int p_type)
+{
+  // Déclaration des variables 
+  char v_timebuf[10];  // Time
+  char v_datebuf[12];  // Date
+  String v_return;
+  // Formatage de la date et heure.
+  sprintf(v_datebuf, "%02d/%02d/%02d", p_date.day(), p_date.month(), p_date.year());  // format date
+  sprintf(v_timebuf, "%02d:%02d:%02d", p_date.hour(), p_date.minute(), p_date.second()); // format time
 
-//Function draw 
-void draw(int draw) {
+  switch (p_type)
+  {
+    case 1: 
+    {
+      v_return = String(v_datebuf);
+      break;
+    }
+    case 2:
+    {
+      v_return = String(v_timebuf);
+      break;
+    }
+    case 3:
+    {
+      v_return = String(v_datebuf) + " " + String(v_timebuf);
+      break;
+    }
+  } 
+  return v_return;
+}
+
+//Function setLcd 
+void setLcd(char draw) {
   // graphic commands to redraw the complete screen should be placed here  
 
   u8g.firstPage();  
-  do {
-     if(draw==1){
-      homeMessage();
-     }
-     
-     if(draw==2){
-       informationMessage();
-     }
+  do {   
+      switch (draw)
+      {
+        case 'H': 
+        {
+          homeMessage();
+          break;
+        }
+        case 'I':
+        {
+          informationMessage();
+          break;
+        }
+      } 
      
   } while( u8g.nextPage() );
     //scroll gauche
@@ -59,7 +111,10 @@ void draw(int draw) {
 
 void homeMessage(){
   u8g.setFont(u8g_font_unifont);
-  u8g.drawStr( 0, 15, "Initialisation");
+  u8g.drawStr( 0, 15, "Init: OK");
+  u8g.drawStr( 0, 30, "Turn on the");
+  u8g.drawStr( 0, 45, "screen by motion");
+  
 }
 
 void informationMessage(){
@@ -73,6 +128,9 @@ void informationMessage(){
 
   u8g.setPrintPos(0, 45);
   u8g.print("Temp:"+String(tmpTemperature,2)+"C");
+
+  u8g.setPrintPos(0, 60);
+  u8g.print(FormatDate(v_now,3));
   
 
 }
@@ -84,9 +142,11 @@ void setup() {
     ; // wait for serial port to connect. Needed for native USB
   }
   
-  //Init sensor
+  //Init sensor temp/hum
   dht.begin();
 
+  // Init du port I2C
+  Wire.begin();
   
   u8g.begin();
   // flip screen, if required
@@ -95,14 +155,26 @@ void setup() {
   //Declare sensor PIR as input
   pinMode(inputPin, INPUT); 
 
+  // Init Tiny RTC pour obtenir l’horloge
+  cpClock.begin();
+   if (!cpClock.isrunning()) {
+    //Serial.println("RTC is NOT running!");
+    // Cette ligne permet de définir la date et l’heure du Tin RTC si celle ci n’a jamais été initialisé.
+    // Attention à ne pas le faire fréquemment, en effet le nombre d’écriture est limité (espérance de vie du composant).
+    cpClock.adjust(DateTime(__DATE__, __TIME__));
+  }
+
   //Message d'accueil
-  draw(1);
+  setLcd('H');
   delay(5000);
 
 }
 
 void loop() {
 
+  //Recuperation de la date/heure
+  v_now = cpClock.now();
+  
   if(v_diff>=readTimeDHT){
   // Reading temperature or humidity takes about 250 milliseconds!
     // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
@@ -129,14 +201,23 @@ void loop() {
   }
 
   readPIR = digitalRead(inputPin);
+  //Serial.println(readPIR);
   
-  if (readPIR == LOW) {  //LOW=interruption par presence
-      u8g.sleepOn();
+  if (readPIR == HIGH) {  
+    if(stateScreen == LOW){
+     u8g.sleepOff();
+     stateScreen=HIGH;
+    }
+   
   } else {
-      u8g.sleepOff();
+    if(stateScreen == HIGH){  
+     u8g.sleepOn();
+     stateScreen=LOW;
+    }
   }
+  setLcd('I');
 
-  draw(2);
+  
 
   v_diff=millis()-v_diffTime;
 }
